@@ -12,23 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
-import itertools
 import os
 import pathlib
-import queue
 import random
 import signal
 import sys
 import threading
 import time
-import warnings
-from dataclasses import fields
-from functools import partial
-from typing import Any, Dict, Iterator, List, Optional, Union
 
 import torch
-from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import Callback
 
 import fault_tolerance as ft
@@ -147,7 +139,7 @@ class FaultToleranceCallback(Callback):
             logging.info(f"Fault tolerance client initialized. Timeouts: {ft_timeouts}")
         else:
             if self.calculate_timeouts:
-                logging.info(f"Fault tolerance client initialized. Timeouts: not calculated yet.")
+                logging.info("Fault tolerance client initialized. Timeouts: not calculated yet.")
             else:
                 raise RuntimeError(
                     "Fault tolerance doesn't have valid timeouts set and 'calculate_timeouts' is False."

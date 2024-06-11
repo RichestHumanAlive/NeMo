@@ -214,7 +214,7 @@ class ExpManagerConfig:
     seconds_to_sleep: float = 5
     # Fault tolrance config
     create_fault_tolerance_callback: Optional[bool] = False
-    fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=lambda: FaultToleranceParams())
+    fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=FaultToleranceParams)
 
 
 class TimingCallback(Callback):
