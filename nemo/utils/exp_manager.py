@@ -55,8 +55,10 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_FT = False
 else:
-    from nemo.utils.callbacks import FaultToleranceCallback 
+    from nemo.utils.callbacks import FaultToleranceCallback
+
     HAVE_FT = True
+
 
 class NotFoundError(NeMoBaseException):
     """Raised when a file or folder is not found"""
