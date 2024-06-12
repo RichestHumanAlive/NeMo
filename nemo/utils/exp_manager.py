@@ -41,7 +41,7 @@ from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
-from nemo.utils.callbacks import FaultToleranceCallback, NeMoModelCheckpoint, PreemptionCallback
+from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
 from nemo.utils.env_var_parsing import get_envbool
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
@@ -50,6 +50,13 @@ from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerP
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
 
+try:
+    import fault_tolerance
+except (ImportError, ModuleNotFoundError):
+    HAVE_FT = False
+else:
+    from nemo.utils.callbacks import FaultToleranceCallback 
+    HAVE_FT = True
 
 class NotFoundError(NeMoBaseException):
     """Raised when a file or folder is not found"""
@@ -540,16 +547,21 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             trainer.callbacks.append(StatelessTimer(cfg.max_time_per_run))
 
     if cfg.create_fault_tolerance_callback:
-        ft_params = cfg.fault_tolerance
-        # job failures are handled by the launcher,
-        # here we only need to know if the autoresume is enabled.
-        ft_use_autoresume = ft_params.max_subsequent_job_failures > 0
-        fault_tol_callback = FaultToleranceCallback(
-            autoresume=ft_use_autoresume,
-            calculate_timeouts=ft_params.calculate_timeouts,
-            simulated_fault_params=ft_params.simulated_fault,
-        )
-        trainer.callbacks.append(fault_tol_callback)
+        if HAVE_FT:
+            ft_params = cfg.fault_tolerance
+            # job failures are handled by the launcher,
+            # here we only need to know if the autoresume is enabled.
+            ft_use_autoresume = ft_params.max_subsequent_job_failures > 0
+            fault_tol_callback = FaultToleranceCallback(
+                autoresume=ft_use_autoresume,
+                calculate_timeouts=ft_params.calculate_timeouts,
+                simulated_fault_params=ft_params.simulated_fault,
+            )
+            trainer.callbacks.append(fault_tol_callback)
+        else:
+            logging.warning(
+                f'FaultToleranceCallback was enabled with create_fault_tolerance_callback, but fault_tolerance package is not present. Skipping creation of FaultToleranceCallback'
+            )
 
     if is_global_rank_zero():
         # Move files_to_copy to folder and add git information if present
