@@ -562,7 +562,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             trainer.callbacks.append(fault_tol_callback)
         else:
             logging.warning(
-                f'FaultToleranceCallback was enabled with create_fault_tolerance_callback, but fault_tolerance package is not present. Skipping creation of FaultToleranceCallback'
+                'FaultToleranceCallback was enabled with create_fault_tolerance_callback, but fault_tolerance package is not present. Skipping creation of FaultToleranceCallback'
             )
 
     if is_global_rank_zero():

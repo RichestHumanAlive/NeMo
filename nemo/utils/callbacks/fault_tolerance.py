@@ -23,9 +23,13 @@ import time
 import torch
 from pytorch_lightning.callbacks import Callback
 
-import fault_tolerance as ft
 from nemo.utils import logging
 
+try:
+    import fault_tolerance as ft
+    HAVE_FT = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_FT = False
 
 class _TrainingStateMachine:
     """
@@ -124,6 +128,10 @@ class FaultToleranceCallback(Callback):
         if self.autoresume and not os.environ.get('FAULT_TOL_FINISHED_FLAG_FILE', ''):
             raise RuntimeError(
                 "'FAULT_TOL_FINISHED_FLAG_FILE' env variable is not set. Was this job launched with FT launcher?"
+            )
+        if not HAVE_FT:
+            raise RuntimeError(
+                "fault_tolerance package is required to use FaultToleranceCallback."
             )
 
     def _setup_fault_tolerance(self):
