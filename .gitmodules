@@ -1,3 +1,0 @@
-[submodule "fault_tolerance"]
-	path = fault_tolerance
-	url = ssh://git@gitlab-master.nvidia.com:12051/dl/gwe/fault_tolerance.git
