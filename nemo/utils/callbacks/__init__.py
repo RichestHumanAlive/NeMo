@@ -13,6 +13,5 @@
 # limitations under the License.
 
 from nemo.utils.callbacks.cuda_graph import CUDAGraphCallback
-from nemo.utils.callbacks.fault_tolerance import FaultToleranceCallback
 from nemo.utils.callbacks.nemo_model_checkpoint import NeMoModelCheckpoint
 from nemo.utils.callbacks.preemption import PreemptionCallback

@@ -51,11 +51,11 @@ from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
 
 try:
-    import fault_tolerance
+    import ptl_resiliency
 except (ImportError, ModuleNotFoundError):
     HAVE_FT = False
 else:
-    from nemo.utils.callbacks import FaultToleranceCallback
+    from ptl_resiliency import FaultToleranceCallback
 
     HAVE_FT = True
 
@@ -561,8 +561,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             )
             trainer.callbacks.append(fault_tol_callback)
         else:
-            logging.warning(
-                'FaultToleranceCallback was enabled with create_fault_tolerance_callback, but fault_tolerance package is not present. Skipping creation of FaultToleranceCallback'
+            raise ValueError(
+                'FaultToleranceCallback was enabled with create_fault_tolerance_callback, but fault_tolerance package is not installed.' 
             )
 
     if is_global_rank_zero():
