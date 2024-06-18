@@ -51,13 +51,11 @@ from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
 
 try:
-    import ptl_resiliency
-except (ImportError, ModuleNotFoundError):
-    HAVE_FT = False
-else:
     from ptl_resiliency import FaultToleranceCallback
 
     HAVE_FT = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_FT = False
 
 
 class NotFoundError(NeMoBaseException):
