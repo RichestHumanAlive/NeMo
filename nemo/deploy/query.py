@@ -46,13 +46,13 @@ class NemoQuery:
         self.model_name = model_name
 
     def query_llm(
-            self,
-            prompts,
-            max_output_token=512,
-            top_k=1,
-            top_p=0.0,
-            temperature=1.0,
-            init_timeout=600.0,
+        self,
+        prompts,
+        max_output_token=512,
+        top_k=1,
+        top_p=0.0,
+        temperature=1.0,
+        init_timeout=600.0,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
