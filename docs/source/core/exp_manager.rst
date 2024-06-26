@@ -208,6 +208,9 @@ Fault Tolerance
 
 .. _exp_manager_fault_tolerance_support-label:
 
+.. note::
+    Fault Tolerance feature is included in the optional NeMo resiliency package.
+
 When training DNN models, faults may occur, hindering the progress of the entire training process. 
 This is particularly common in distributed, multi-node training scenarios, with many nodes and GPUs involved. 
 
@@ -252,7 +255,7 @@ Estimated timeouts are stored in the checkpoint. Estimated timeouts take precede
 defined in the config file.
 
 ``max_subsequent_job_failures`` allows for the automatic continuation of training on a SLURM cluster. 
-This option requires the job to be scheduled with modified `NeMo-Megatron-Launcher <https://github.com/NVIDIA/NeMo-Megatron-Launcher>`_ 
+This option requires the job to be scheduled with `NeMo-Framework-Launcher <https://github.com/NVIDIA/NeMo-Framework-Launcher>`_ 
 If ``max_subsequent_job_failures`` value is ``>0`` continuation job is prescheduled. It will continue 
 the work until ``max_subsequent_job_failures`` subsequent jobs failed (SLURM step return code is != 0) or the training 
 is completed successfully ("end of training" marker file is produced by the workload).

@@ -354,7 +354,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 See EarlyStoppingParams dataclass above.
             - create_preemption_callback (bool): Flag to decide whether to enable preemption callback to save checkpoints and exit training
                 immediately upon preemption. Default is True.
-            - create_fault_tolerance_callback (bool): Use experimental fault tolerance callback.
+            - create_fault_tolerance_callback (bool): Use fault tolerance callback.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
             - log_local_rank_0_only (bool): Whether to only create log files for local rank 0. Defaults to False.
