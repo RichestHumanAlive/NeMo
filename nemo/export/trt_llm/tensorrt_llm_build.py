@@ -13,25 +13,15 @@
 # limitations under the License.
 
 
-import argparse
 import logging
-import os
-import time
-from pathlib import Path
-from typing import List
-
 import tensorrt_llm
 from tensorrt_llm._common import check_max_num_tokens
-from tensorrt_llm._utils import np_dtype_to_trt
 from tensorrt_llm.builder import BuildConfig, Builder
 from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.logger import logger
-from tensorrt_llm.lora_manager import LoraBuildConfig
+from tensorrt_llm.lora_manager import LoraConfig
 from tensorrt_llm.models.modeling_utils import add_lora, optimize_model, preprocess_weights
-from tensorrt_llm.network import net_guard
 from tensorrt_llm.plugin import PluginConfig
-from tensorrt_llm.plugin.plugin import ContextFMHAType
-from tensorrt_llm.quantization import QuantMode
 
 MODEL_NAME = "NeMo"
 
@@ -54,6 +44,7 @@ def build_and_save_engine(
     enable_multi_block_mode: bool = False,
     paged_kv_cache: bool = True,
     remove_input_padding: bool = True,
+    paged_context_fmha: bool = False,
     max_num_tokens: int = None,
     opt_num_tokens: int = None,
     max_beam_width: int = 1,
@@ -75,6 +66,7 @@ def build_and_save_engine(
     else:
         plugin_config.paged_kv_cache = False
     plugin_config.remove_input_padding = remove_input_padding
+    plugin_config.use_paged_context_fmha = paged_context_fmha
 
     max_num_tokens, opt_num_tokens = check_max_num_tokens(
         max_num_tokens=max_num_tokens,
@@ -104,7 +96,7 @@ def build_and_save_engine(
 
     if use_lora_plugin is not None:
         build_config.plugin_config.set_lora_plugin(use_lora_plugin)
-        lora_config = LoraBuildConfig(
+        lora_config = LoraConfig(
             lora_dir=lora_ckpt_list,
             lora_ckpt_source='nemo',
             max_lora_rank=max_lora_rank,
