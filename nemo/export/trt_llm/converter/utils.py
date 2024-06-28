@@ -203,9 +203,9 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
 
     vals = [val.to(storage_type) for val in vals]
     if convert_on_device:
-        assert len(vals) == 1 # Should only convert a single device param per call
+        assert len(vals) == 1  # Should only convert a single device param per call
         assert torch.is_tensor(vals[0])
-    elif torch.is_tensor(vals[0]): 
+    elif torch.is_tensor(vals[0]):
         vals = [torch_to_numpy(val.cpu()) for val in vals]
 
     if (
@@ -348,9 +348,7 @@ def split_and_save_weight(tp_rank, saved_dir, split_factor, key, vals, storage_t
         # Split the QKV to separate variables.
         if convert_on_device:
             qkv = torch.split(val, [q_num, 1, 1], dim=1)
-            split_vals = torch.concatenate(
-                [qkv[0].reshape(-1), qkv[1].reshape(-1), qkv[2].reshape(-1)], dim=1
-            )
+            split_vals = torch.concatenate([qkv[0].reshape(-1), qkv[1].reshape(-1), qkv[2].reshape(-1)], dim=1)
             save_val(split_vals, saved_dir, key)
         else:
             qkv = np.split(val, [q_num, q_num + 1], axis=1)
@@ -465,4 +463,3 @@ def split(v, tp_size, idx, dim=0):
         return np.ascontiguousarray(np.split(v, tp_size)[idx])
     else:
         return np.ascontiguousarray(np.split(v, tp_size, axis=dim)[idx])
-        

@@ -46,6 +46,7 @@ except Exception:
 
 try:
     from megatron.core import parallel_state
+
     HAVE_MEGATRON_CORE = True
 except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
@@ -337,7 +338,7 @@ class TensorRTLLM(ITritonDeployable):
         use_refit: bool = True,
         trt_model_dir: str = None,
         reshard_model: bool = False,
-    ):        
+    ):
         """
         Convert an instantiated nemo model to TensorRT-LLM.
         """
@@ -372,7 +373,7 @@ class TensorRTLLM(ITritonDeployable):
         if dp_size > 1:
             self.model_dir = os.path.join(self.model_dir, f"dp_rank{dp_rank}")
         mp_rank = tp_size * pp_rank + tp_rank
-        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)        
+        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)
 
         weights, model_config = model_to_trtllm_ckpt(
             model=nemo_model,
@@ -397,17 +398,18 @@ class TensorRTLLM(ITritonDeployable):
             model_dir=self.model_dir,
             model_type=trt_model_type,
             custom_all_reduce=False,
-            use_refit=use_refit
+            use_refit=use_refit,
         )
         torch.distributed.barrier()
-    
+
         myrank = torch.distributed.get_rank()
         cfg_path = Path(os.path.join(self.model_dir, f'config_{myrank}.json'))
         with open(cfg_path, "w", encoding="utf-8") as f:
             json.dump(engine.config.to_dict(), f, indent=4)
 
         self.model_runner, self.session_params = load_distributed(
-            engine_dir=self.model_dir, model_parallel_rank=mp_rank, gpus_per_node=gpus_per_node)
+            engine_dir=self.model_dir, model_parallel_rank=mp_rank, gpus_per_node=gpus_per_node
+        )
 
     def refit(self, model, nemo_model_config):
         """
@@ -421,8 +423,8 @@ class TensorRTLLM(ITritonDeployable):
             pp_size = 1
 
         weights_dict = dist_model_to_trt_llm_ckpt(
-            model=model, 
-            nemo_model_config=nemo_model_config, 
+            model=model,
+            nemo_model_config=nemo_model_config,
             inference_tp_size=tp_size,
             inference_pp_size=pp_size,
             tokenizer_vocab_size=self.tokenizer.vocab_size,
@@ -430,8 +432,7 @@ class TensorRTLLM(ITritonDeployable):
 
         if not hasattr(self.model_runner, "session"):
             self.model_runner.session = create_gpt_session(self.session_params)
-        self.model_runner.session.refit_engine(
-            weights_dict, self.session_params.model_config.data_type)
+        self.model_runner.session.refit_engine(weights_dict, self.session_params.model_config.data_type)
 
     def forward(
         self,
