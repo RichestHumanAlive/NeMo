@@ -1,5 +1,6 @@
 import re
 
+
 class ChatTemplateMixin:
     def apply_chat_template(self, messages):
         assert self.chat_template is not None
@@ -11,7 +12,7 @@ class ChatTemplateMixin:
 
 
 def render_chat_turn(message, template):
-    """ Renders a chat turn based on template
+    """Renders a chat turn based on template
 
     Args:
         message (Dict)
@@ -92,8 +93,9 @@ def extract_turns(messages, axis):
     """
     ans = []
     for turn in messages:
-        ans.append({k: v[axis] for k,v in turn.items()})
+        ans.append({k: v[axis] for k, v in turn.items()})
     return ans
+
 
 def explode_chat_template_input(messages):
     # [
@@ -104,14 +106,19 @@ def explode_chat_template_input(messages):
     assert isinstance(messages, list), "Expected messages to be a list"
     assert len(messages) > 0, "Expected non empty messages"
     assert all(map(lambda x: isinstance(x, dict), messages)), "Expected messages to contain dicts"
-    assert all(map(lambda x: 'role' in x and 'content' in x, messages)), "Expected messages each dict to contain 'role' and 'content' fields"
+    assert all(
+        map(lambda x: 'role' in x and 'content' in x, messages)
+    ), "Expected messages each dict to contain 'role' and 'content' fields"
     n = len(messages[0]['role'])
-    assert all(map(lambda x: len(x['role']) == n, messages)), "Expected all batch messages to contain equal number of roles in all turns"
+    assert all(
+        map(lambda x: len(x['role']) == n, messages)
+    ), "Expected all batch messages to contain equal number of roles in all turns"
     for i in range(n):
         yield extract_turns(messages, axis=i)
 
 
 def is_chat_input(messages):
     return isinstance(messages, list) and len(messages) > 0 and isinstance(messages[0], dict)
+
 
 # /mnt/4tb/chat_template
