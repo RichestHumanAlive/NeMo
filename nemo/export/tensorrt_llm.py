@@ -37,7 +37,6 @@ from nemo.export.trt_llm.qnemo.tokenizer_utils import get_nmt_tokenizer
 from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
 from nemo.export.trt_llm.tensorrt_llm_run import generate, generate_streaming, load, load_distributed
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import build_tokenizer
 
 use_deploy = True
 try:
@@ -149,13 +148,6 @@ class TensorRTLLM(ITritonDeployable):
         max_num_tokens: int = None,
         opt_num_tokens: int = None,
         save_nemo_model_config: bool = False,
-        use_custom_allreduce: bool = False,
-        use_refit: bool = False,
-        reshard_model: bool = False,
-        distributed_env: bool = False,
-        model = None,
-        model_configs = None,
-        tokenizer = None,
     ):
         """
         Exports nemo checkpoints to TensorRT-LLM.
@@ -201,36 +193,30 @@ class TensorRTLLM(ITritonDeployable):
         if model_type == "mixtral":
             model_type = "llama"
 
-        if distributed_env: # Auto detect model parallel size from megatron.core.parallel_state
-            model_parallel_rank, tensor_parallel_size, pipeline_parallel_size = \
-                self._setup_distributed_env(reshard_model)
-        else:
-            if pipeline_parallel_size is None:
-                tensor_parallel_size = n_gpus
-                pipeline_parallel_size = 1
-            elif tensor_parallel_size is None:
-                tensor_parallel_size = 1
-                pipeline_parallel_size = n_gpus
-            model_parallel_rank = None # Unused if single gpu environment
+        if pipeline_parallel_size is None:
+            tensor_parallel_size = n_gpus
+            pipeline_parallel_size = 1
+        elif tensor_parallel_size is None:
+            tensor_parallel_size = 1
+            pipeline_parallel_size = n_gpus
 
         gpus_per_node = tensor_parallel_size if gpus_per_node is None else gpus_per_node
 
-        if not distributed_env:
-            if Path(self.model_dir).exists():
-                if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
-                    for files in os.listdir(self.model_dir):
-                        path = os.path.join(self.model_dir, files)
-                        try:
-                            shutil.rmtree(path)
-                        except OSError:
-                            os.remove(path)
+        if Path(self.model_dir).exists():
+            if delete_existing_files and len(os.listdir(self.model_dir)) > 0:
+                for files in os.listdir(self.model_dir):
+                    path = os.path.join(self.model_dir, files)
+                    try:
+                        shutil.rmtree(path)
+                    except OSError:
+                        os.remove(path)
 
-                    if len(os.listdir(self.model_dir)) > 0:
-                        raise Exception("Couldn't delete all files.")
-                elif len(os.listdir(self.model_dir)) > 0:
-                    raise Exception("There are files in this folder. Try setting delete_existing_files=True.")
-            else:
-                Path(self.model_dir).mkdir(parents=True, exist_ok=True)
+                if len(os.listdir(self.model_dir)) > 0:
+                    raise Exception("Couldn't delete all files.")
+            elif len(os.listdir(self.model_dir)) > 0:
+                raise Exception("There are files in this folder. Try setting delete_existing_files=True.")
+        else:
+            Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
         if max_prompt_embedding_table_size is None:
             max_prompt_embedding_table_size = 0
@@ -253,7 +239,7 @@ class TensorRTLLM(ITritonDeployable):
             )
             max_output_len = max_output_token
 
-        if tensorrt_llm.mpi_rank() == 0 or distributed_env:
+        if tensorrt_llm.mpi_rank() == 0:
             tmp_dir = tempfile.TemporaryDirectory()
             nemo_export_dir = Path(tmp_dir.name)
 
@@ -285,11 +271,7 @@ class TensorRTLLM(ITritonDeployable):
                     opt_num_tokens=opt_num_tokens,
                 )
             else:
-                if model is None:
-                    model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
-                else: # Use user provided model and tokenizer
-                    self.tokenizer = build_tokenizer(tokenizer)
-     
+                model, model_configs, self.tokenizer = load_nemo_model(nemo_checkpoint_path, nemo_export_dir)
                 weights_dicts, model_configs = model_to_trtllm_ckpt(
                     model=model,
                     nemo_model_config=model_configs,
@@ -301,9 +283,6 @@ class TensorRTLLM(ITritonDeployable):
                     gpus_per_node=gpus_per_node,
                     use_parallel_embedding=use_parallel_embedding,
                     use_embedding_sharing=use_embedding_sharing,
-                    use_distributed_convert=distributed_env,
-                    model_parallel_rank=model_parallel_rank,
-                    vocab_size=self.tokenizer.vocab_size,
                 )
 
                 for weight_dict, model_config in zip(weights_dicts, model_configs):
@@ -325,21 +304,17 @@ class TensorRTLLM(ITritonDeployable):
                         remove_input_padding=remove_input_padding,
                         max_num_tokens=max_num_tokens,
                         opt_num_tokens=opt_num_tokens,
-                        custom_all_reduce=use_custom_allreduce,
-                        use_refit=use_refit
                     )
 
-            if not distributed_env:
-                tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
-                if os.path.exists(tokenizer_path):
-                    shutil.copy(tokenizer_path, self.model_dir)
-                else:
-                    self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
+            tokenizer_path = os.path.join(nemo_export_dir, "tokenizer.model")
+            if os.path.exists(tokenizer_path):
+                shutil.copy(tokenizer_path, self.model_dir)
+            else:
+                self.tokenizer.save_pretrained(os.path.join(self.model_dir, 'huggingface_tokenizer'))
 
-                nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
-                if os.path.exists(nemo_model_config):
-                    shutil.copy(nemo_model_config, self.model_dir)
-
+            nemo_model_config = os.path.join(nemo_export_dir, "model_config.yaml")
+            if os.path.exists(nemo_model_config):
+                shutil.copy(nemo_model_config, self.model_dir)
 
             tmp_dir.cleanup()
 
@@ -348,13 +323,91 @@ class TensorRTLLM(ITritonDeployable):
 
         if load_model:
             self._load()
-        
-        if distributed_env:
-            self.model_runner, self.session_params = load_distributed(
-                engine_dir=self.model_dir, 
-                model_parallel_rank=model_parallel_rank, 
-                gpus_per_node=gpus_per_node,
-                tokenizer=self.tokenizer)
+
+    def build(
+        self,
+        nemo_model,
+        nemo_model_config,
+        trt_model_type,
+        tokenizer,
+        max_input_len: int = 1024,
+        max_input_tokens: int = 4096,
+        max_output_len: int = 1024,
+        max_batch_size: int = 4,
+        use_refit: bool = True,
+        trt_model_dir: str = None,
+        reshard_model: bool = False,
+    ):        
+        """
+        Convert an instantiated nemo model to TensorRT-LLM.
+        """
+
+        assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
+        from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import build_tokenizer
+
+        global_devices = [None for _ in range(torch.distributed.get_world_size())]
+        torch.distributed.all_gather_object(global_devices, torch.cuda.current_device())
+        gpus_per_node = max(global_devices) + 1
+
+        self.use_refit = use_refit
+        self.tokenizer = build_tokenizer(tokenizer)
+        self.trt_model_type = trt_model_type
+
+        pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+        tp_size = parallel_state.get_tensor_model_parallel_world_size()
+        dp_size = parallel_state.get_data_parallel_world_size()
+        tp_rank = parallel_state.get_tensor_model_parallel_rank()
+        pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+        dp_rank = parallel_state.get_data_parallel_rank()
+
+        if reshard_model and pp_size > 1:
+            self.reshard_model = True
+            dp_size = dp_size * pp_size
+            dp_rank = torch.distributed.get_rank() // tp_size
+            pp_rank = 0
+            pp_size = 1
+        else:
+            self.reshard_model = False
+
+        if dp_size > 1:
+            self.model_dir = os.path.join(self.model_dir, f"dp_rank{dp_rank}")
+        mp_rank = tp_size * pp_rank + tp_rank
+        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)        
+
+        weights, model_config = model_to_trtllm_ckpt(
+            model=nemo_model,
+            nemo_model_config=nemo_model_config,
+            nemo_export_dir=trt_model_dir,
+            decoder_type=trt_model_type,
+            tensor_parallel_size=tp_size,
+            pipeline_parallel_size=pp_size,
+            gpus_per_node=gpus_per_node,
+            use_parallel_embedding=True,
+            use_distributed_convert=True,
+            model_parallel_rank=mp_rank,
+            vocab_size=self.tokenizer.vocab_size,
+        )
+
+        engine = build_and_save_engine(
+            max_input_len=max_input_len,
+            max_output_len=max_output_len,
+            max_batch_size=max_batch_size,
+            model_config=model_config[0],
+            model_weights=weights[0],
+            model_dir=self.model_dir,
+            model_type=trt_model_type,
+            custom_all_reduce=False,
+            use_refit=use_refit
+        )
+        torch.distributed.barrier()
+    
+        myrank = torch.distributed.get_rank()
+        cfg_path = Path(os.path.join(self.model_dir, f'config_{myrank}.json'))
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(engine.config.to_dict(), f, indent=4)
+
+        self.model_runner, self.session_params = load_distributed(
+            engine_dir=self.model_dir, model_parallel_rank=mp_rank, gpus_per_node=gpus_per_node)
 
     def refit(self, model, nemo_model_config):
         """
@@ -822,29 +875,3 @@ class TensorRTLLM(ITritonDeployable):
                         "model needs to be exported again. "
                         "Error message: " + repr(error)
                     ) from error
-
-    def _setup_distributed_env(self, reshard_model):
-        assert tensorrt_llm.mpi_rank() == torch.distributed.get_rank()
-
-        pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-        tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        dp_size = parallel_state.get_data_parallel_world_size()
-        tp_rank = parallel_state.get_tensor_model_parallel_rank()
-        pp_rank = parallel_state.get_pipeline_model_parallel_rank()
-        dp_rank = parallel_state.get_data_parallel_rank()
-
-        if reshard_model and pp_size > 1:
-            self.reshard_model = True
-            dp_size = dp_size * pp_size
-            dp_rank = torch.distributed.get_rank() // tp_size
-            pp_rank = 0
-            pp_size = 1
-        else:
-            self.reshard_model = False
-
-        if dp_size > 1:
-            self.model_dir = os.path.join(self.model_dir, f"dp_rank{dp_rank}")
-        mp_rank = tp_size * pp_rank + tp_rank
-        tensorrt_llm.bindings.MpiComm.split(dp_rank, mp_rank)   
-
-        return mp_rank, tp_size, pp_size 

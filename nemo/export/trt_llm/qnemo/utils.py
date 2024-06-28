@@ -9,9 +9,6 @@ WEIGHTS_NAME = "rank{}.safetensors"
 
 def is_qnemo_checkpoint(path: str) -> bool:
     """Detect if a given path is a TensorRT-LLM a.k.a. "qnemo" checkpoint based on config & tensor data presence."""
-    if path is None:
-        return False
-        
     if os.path.isdir(path):
         path = Path(path)
     else:
