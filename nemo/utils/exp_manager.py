@@ -53,6 +53,14 @@ from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
 
 try:
+    # `ptl_resiliency` is included in `gwe_resiliency_pkg` package
+    from ptl_resiliency import StragglerDetectionCallback
+
+    HAVE_STRAGGLER_DET = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_STRAGGLER_DET = False
+
+try:
     from ptl_resiliency import FaultToleranceCallback
 
     HAVE_FT = True
@@ -135,6 +143,17 @@ class EMAParams:
     cpu_offload: Optional[bool] = False
     validate_original_weights: Optional[bool] = False
     every_n_steps: int = 1
+
+
+@dataclass
+class StragglerDetectionParams:
+    report_time_interval: float = 300
+    calc_relative_gpu_perf: bool = True
+    calc_individual_gpu_perf: bool = True
+    num_gpu_perf_scores_to_log: int = 5
+    gpu_relative_perf_threshold: float = 0.7
+    gpu_individual_perf_threshold: float = 0.7
+    stop_if_detected: bool = False
 
 
 @dataclass
@@ -221,7 +240,10 @@ class ExpManagerConfig:
     max_time_per_run: Optional[str] = None
     # time to sleep non 0 ranks during initialization
     seconds_to_sleep: float = 5
-    # Fault tolrance config
+    # Straggler detection
+    create_straggler_detection_callback: Optional[bool] = False
+    straggler_detection_params: Optional[StragglerDetectionParams] = field(default_factory=StragglerDetectionParams)
+    # Fault tolrance
     create_fault_tolerance_callback: Optional[bool] = False
     fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=FaultToleranceParams)
 
@@ -354,7 +376,8 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 See EarlyStoppingParams dataclass above.
             - create_preemption_callback (bool): Flag to decide whether to enable preemption callback to save checkpoints and exit training
                 immediately upon preemption. Default is True.
-            - create_fault_tolerance_callback (bool): Use fault tolerance callback.
+            - create_straggler_detection_callback (bool): Use straggler detection callback. Default is False.
+            - create_fault_tolerance_callback (bool): Use fault tolerance callback. Default is False.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
             - log_local_rank_0_only (bool): Whether to only create log files for local rank 0. Defaults to False.
@@ -548,10 +571,22 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             trainer.max_time = cfg.max_time_per_run
             trainer.callbacks.append(StatelessTimer(cfg.max_time_per_run))
 
+    if cfg.create_straggler_detection_callback:
+        if HAVE_STRAGGLER_DET:
+            logging.info("Enabling straggler detection...")
+            straggler_det_args_dict = dict(cfg.straggler_detection_params)
+            straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict, logger=logging)
+            trainer.callbacks.append(straggler_det_callback)
+        else:
+            raise ValueError(
+                "`create_straggler_detection_callback` is True, but there is no Straggler Det. package installed."
+            )
+
     if cfg.create_fault_tolerance_callback:
         if HAVE_FT:
+            logging.info("Enabling fault tolerance...")
             ft_params = cfg.fault_tolerance
-            # job failures are handled by the launcher,
+            # job failures are handled by the ft_launcher,
             # here we only need to know if the autoresume is enabled.
             ft_use_autoresume = ft_params.max_subsequent_job_failures > 0
             fault_tol_callback = FaultToleranceCallback(
