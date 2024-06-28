@@ -423,7 +423,14 @@ def create_gpt_session(session_params: GptSession_params, engine_data: bytearray
         session_params.session_config, session_params.model_config, session_params.world_config, engine_data
     )
 
-def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
+   
+
+def load_distributed(
+    engine_dir, 
+    model_parallel_rank, 
+    gpus_per_node,
+    tokenizer: PreTrainedTokenizer,
+    num_beams=1):
     """Loads TRTLLM engines in a distributed gpu environment, in particular 
     this function creates a custom mapping of device_id to WorldConfig
     """
@@ -473,7 +480,7 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     )
     session = create_gpt_session(session_params, engine_data)
 
-    model_runner = ModelRunnerCppGptSession(
+    decoder = ModelRunnerCppGptSession(
         session,
         lora_manager=None,
         max_batch_size=max_batch_size,
@@ -481,7 +488,18 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
         max_seq_len=max_seq_len,
         max_beam_width=max_beam_width,
     )
-    return model_runner, session_params
+    
+    sampling_config = SamplingConfig(
+        end_id=tokenizer.eos_token_id, pad_id=tokenizer.eos_token_id
+    )
+
+    global tensorrt_llm_worker_context
+    tensorrt_llm_worker_context.decoder = decoder
+    tensorrt_llm_worker_context.sampling_config = sampling_config
+    tensorrt_llm_worker_context.max_batch_size = max_batch_size
+    tensorrt_llm_worker_context.max_input_len = max_input_len
+
+    return decoder, session_params
 
 
 def prepare_input_tensors(

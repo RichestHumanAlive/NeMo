@@ -14,7 +14,10 @@
 
 
 import logging
+from pathlib import Path
+import os, json
 import tensorrt_llm
+import torch
 from tensorrt_llm._common import check_max_num_tokens
 from tensorrt_llm.builder import BuildConfig, Builder
 from tensorrt_llm.commands.build import build as build_trtllm
@@ -117,4 +120,12 @@ def build_and_save_engine(
     engine = build_trtllm(model, build_config)
     engine.save(model_dir)
 
+    # If in a multiprocessed env, at least 1 rank per node must save an engine config
+    # Here we simply have all ranks save a config
+    if torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1:
+        myrank = torch.distributed.get_rank()
+        cfg_path = Path(os.path.join(model_dir, f'config_{myrank}.json'))
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(engine.config.to_dict(), f, indent=4)
+    
     return engine
